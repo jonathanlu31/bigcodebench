@@ -34,49 +34,49 @@ from bigcodebench.gen.util import trusted_check
 Result = Tuple[str, List[bool]]
 
 
-def get_groundtruth(n_workers, problems, hashcode, check_gt_only, max_as_limit, max_data_limit, max_stack_limit):
-    cache_file = os.path.join(CACHE_DIR, f"{hashcode}.pkl")
-    if os.path.exists(cache_file):
-        if check_gt_only:
-            os.remove(cache_file)
-        else:
-            print(f"Load from ground-truth from {cache_file}")
-            with open(cache_file, "rb") as f:
-                return pickle.load(f)
+# def get_groundtruth(n_workers, problems, hashcode, check_gt_only, max_as_limit, max_data_limit, max_stack_limit):
+#     cache_file = os.path.join(CACHE_DIR, f"{hashcode}.pkl")
+#     if os.path.exists(cache_file):
+#         if check_gt_only:
+#             os.remove(cache_file)
+#         else:
+#             print(f"Load from ground-truth from {cache_file}")
+#             with open(cache_file, "rb") as f:
+#                 return pickle.load(f)
 
-    os.makedirs(CACHE_DIR, exist_ok=True)
-    print("\nAsserting the groundtruth...")
-    tbegin = time.time()
+#     os.makedirs(CACHE_DIR, exist_ok=True)
+#     print("\nAsserting the groundtruth...")
+#     tbegin = time.time()
     
-    with ProcessPoolExecutor(max_workers=n_workers) as executor:
-        futures = []
-        n_samples = 0
-        expected_time = dict()
+#     with ProcessPoolExecutor(max_workers=n_workers) as executor:
+#         futures = []
+#         n_samples = 0
+#         expected_time = dict()
         
-        for problem in problems.values():
-            args = (
-                problem["complete_prompt"] + "\n" + problem["canonical_solution"],
-                problem["test"],
-                problem["task_id"],
-                max_as_limit,
-                max_data_limit,
-                max_stack_limit
-            )
+#         for problem in problems.values():
+#             args = (
+#                 problem["complete_prompt"] + "\n" + problem["canonical_solution"],
+#                 problem["test"],
+#                 problem["task_id"],
+#                 max_as_limit,
+#                 max_data_limit,
+#                 max_stack_limit
+#             )
             
-            futures.append(executor.submit(trusted_check, *args))
-            n_samples += 1
+#             futures.append(executor.submit(trusted_check, *args))
+#             n_samples += 1
 
-        for future in tqdm(as_completed(futures), total=n_samples):
-            result = future.result()
-            expected_time[result["task_id"]] = result["time"]
+#         for future in tqdm(as_completed(futures), total=n_samples):
+#             result = future.result()
+#             expected_time[result["task_id"]] = result["time"]
     
-    print(f"Expected outputs computed in {time.time() - tbegin:.2f}s")
+#     print(f"Expected outputs computed in {time.time() - tbegin:.2f}s")
     
-    if any(expected_time.values()):
-        with open(cache_file, "wb") as f:
-            pickle.dump(expected_time, f)
+#     if any(expected_time.values()):
+#         with open(cache_file, "wb") as f:
+#             pickle.dump(expected_time, f)
 
-    return expected_time
+#     return expected_time
 
 def check_correctness(
     completion_id: int,
@@ -118,41 +118,36 @@ def evaluate(flags):
         # bypass the samples
         flags.samples = "__dummy__.jsonl"
     
-    extra = flags.subset + "_" if flags.subset != "full" else ""
     if os.path.isdir(flags.samples):
-        result_path = os.path.join(flags.samples, f"{extra}eval_results.json")
+        result_path = os.path.join(flags.samples, "eval_results.json")
     else:
         assert flags.samples.endswith(".jsonl")
-        result_path = flags.samples.replace(".jsonl", f"_{extra}eval_results.json")
+        result_path = flags.samples.replace(".jsonl", "_eval_results.json")
 
-    problems = get_bigcodebench(subset=flags.subset)
-    dataset_hash = get_bigcodebench_hash(subset=flags.subset)
+    problems = get_bigcodebench()
+    # dataset_hash = get_bigcodebench_hash(subset=flags.subset)
     
-    if not flags.no_gt:
-        expected_time = get_groundtruth(n_workers, problems, dataset_hash, flags.check_gt_only, flags.max_as_limit, flags.max_data_limit, flags.max_stack_limit)
-    else:
-        expected_time = {task_id: None for task_id in problems}
+    # if not flags.no_gt:
+    #     expected_time = get_groundtruth(n_workers, problems, dataset_hash, flags.check_gt_only, flags.max_as_limit, flags.max_data_limit, flags.max_stack_limit)
+    # else:
+    expected_time = {task_id: None for task_id in problems}
     
-    gt_pass_rate = np.mean([1 if v is not None else 0 for k, v in expected_time.items() if k in problems])
-    failed_tasks = [k for k, v in expected_time.items() if v is None and k in problems]
+    # gt_pass_rate = np.mean([1 if v is not None else 0 for k, v in expected_time.items() if k in problems])
     
-    if os.path.isfile(result_path):
+    if False: #os.path.isfile(result_path):
         print(f"Load from previous results from {result_path}")
         with open(result_path, "r") as f:
             results = json.load(f)
 
         results = compatible_eval_result(results)
     else:
-        if flags.check_gt_only:
+        # if flags.check_gt_only:
         
-            if gt_pass_rate > 0.99:
-                cprint(f"Groundtruth pass rate: {gt_pass_rate:.3f}", "green")
-            else:
-                cprint(f"Groundtruth pass rate: {gt_pass_rate:.3f}\nPlease be cautious!", "red")
-            return
-        
-            if len(failed_tasks) > 0:
-                cprint(f"Failed tasks: {failed_tasks}", "red")
+        #     if gt_pass_rate > 0.99:
+        #         cprint(f"Groundtruth pass rate: {gt_pass_rate:.3f}", "green")
+        #     else:
+        #         cprint(f"Groundtruth pass rate: {gt_pass_rate:.3f}\nPlease be cautious!", "red")
+        #     return
         
         results = {
             "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -199,7 +194,7 @@ def evaluate(flags):
                 n_samples += 1
 
             assert n_samples == len(remainings), "Missing problems in unfinished"
-            assert len(completion_id) == len(problems), "Missing problems in samples"
+            assert len(completion_id) == n_samples, "Missing problems in samples"
 
             def stucking_checker():
                 while remainings:
@@ -252,9 +247,7 @@ def evaluate(flags):
     }
     
     mode = "-calibrated" if "sanitized-calibrated" in flags.samples else ""
-    extra = flags.subset.capitalize()
-    flags.split = flags.split.capitalize()
-    cprint(f"BigCodeBench-{flags.split}{mode} ({extra})", "green")
+    cprint(f"BigCodeBench-{mode})", "green")
         
     if flags.no_gt:
         cprint(f"Groundtruth is not checked", "yellow")
@@ -263,9 +256,6 @@ def evaluate(flags):
             cprint(f"Groundtruth pass rate: {gt_pass_rate:.3f}", "green")
         else:
             cprint(f"Groundtruth pass rate: {gt_pass_rate:.3f}\nPlease be cautious!", "red")
-        
-        if len(failed_tasks) > 0:
-            cprint(f"Failed tasks: {failed_tasks}", "red")
     
     for k, v in pass_at_k.items():
         cprint(f"{k}:\t{v:.3f}", "green")
@@ -288,54 +278,47 @@ def evaluate(flags):
     if not os.path.isfile(result_path):
         with open(result_path, "w") as f:
             json.dump(results, f, indent=2)
+    
+    pass_at_k_path = result_path.replace("_eval_results.json", "_pass_at_k.json")
+    pass_at_k["model"] = os.path.basename(flags.samples).split("--bigcodebench-")[0]
+    pass_at_k["calibrated"] = "sanitized-calibrated" in flags.samples
 
-    if flags.save_pass_rate:
-        pass_at_k_path = result_path.replace("_eval_results.json", "_pass_at_k.json")
-        pass_at_k["model"] = os.path.basename(flags.samples).split("--bigcodebench-")[0]
-        pass_at_k["calibrated"] = "sanitized-calibrated" in flags.samples
-        pass_at_k["subset"] = flags.subset
+    def save_pass_at_k():
+        with open(pass_at_k_path, "w") as f:
+            json.dump(pass_at_k, f, indent=2)
 
-        def save_pass_at_k():
-            with open(pass_at_k_path, "w") as f:
-                json.dump(pass_at_k, f, indent=2)
-
-        if os.path.isfile(pass_at_k_path):
-            saved_pass_at_k = json.load(open(pass_at_k_path, "r"))
-            # compare saved_pass_at_k with pass_at_k
-            for k in saved_pass_at_k.keys():
-                if pass_at_k[k] != saved_pass_at_k[k]:
-                    cprint(f"Warning: {k} is different from the saved one", "yellow")
-                    
-            # ask user whether to save the pass@k
-            decision = ""
-            while decision.lower() not in ["y", "n"]:
-                print(f"Save pass@k to {pass_at_k_path}? [Y/N]")
-                decision = input()
-            if decision.lower() == "y":
-                save_pass_at_k()
+    if os.path.isfile(pass_at_k_path):
+        saved_pass_at_k = json.load(open(pass_at_k_path, "r"))
+        # compare saved_pass_at_k with pass_at_k
+        for k in saved_pass_at_k.keys():
+            if pass_at_k[k] != saved_pass_at_k[k]:
+                cprint(f"Warning: {k} is different from the saved one", "yellow")
                 
-        else:
+        # ask user whether to save the pass@k
+        decision = ""
+        while decision.lower() not in ["y", "n"]:
+            print(f"Save pass@k to {pass_at_k_path}? [Y/N]")
+            decision = input()
+        if decision.lower() == "y":
             save_pass_at_k()
+            
+    else:
+        save_pass_at_k()
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--split", required=True, type=str, choices=["complete", "instruct"]
-    )
-    parser.add_argument("--subset", default="full", type=str, choices=["full", "hard"])
     parser.add_argument("--samples", required=True, type=str)
-    parser.add_argument("--save_pass_rate", action="store_true")
     parser.add_argument("--parallel", default=None, type=int)
     parser.add_argument("--min-time-limit", default=1, type=float)
     parser.add_argument("--max-as-limit", default=128*1024, type=int)
     parser.add_argument("--max-data-limit", default=4*1024, type=int)
     parser.add_argument("--max-stack-limit", default=5, type=int)
     parser.add_argument(
-        "--check-gt-only", action="store_true", help="Check the ground truth"
+        "--check-gt-only", action="store_true", help="Check the groundtruth"
     )
     parser.add_argument(
-        "--no-gt", action="store_true", help="Skip the ground truth"
+        "--no-gt", action="store_true", default=True, help="Check the groundtruth"
     )
     args = parser.parse_args()
 

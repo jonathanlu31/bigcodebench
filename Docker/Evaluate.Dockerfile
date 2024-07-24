@@ -13,8 +13,8 @@ RUN adduser --disabled-password --gecos "" bigcodebenchuser
 RUN rm -rf /bigcodebench
 
 # Acquire benchmark code to local
-ADD "https://api.github.com/repos/bigcode-project/bigcodebench/commits?per_page=1" latest_commit
-RUN git clone https://github.com/bigcode-project/bigcodebench.git /bigcodebench
+ADD "https://api.github.com/repos/jonathanlu31/bigcodebench/commits?per_page=1" latest_commit
+RUN git clone https://github.com/jonathanlu31/bigcodebench.git /bigcodebench
 
 RUN cd /bigcodebench && pip install .
 
